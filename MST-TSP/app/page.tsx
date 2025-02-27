@@ -5,21 +5,25 @@ import CityInput from "@/components/CityInput";
 import MstResult from "@/components/MstResult";
 import { getCoordinates, getRoadDistances } from "@/lib/apiUtils";
 import { kruskal } from "@/lib/kruskal";
-import { checkCityExists } from "@/lib/api"; // Add this import
+import { checkCityExists } from "@/lib/api";
 import { motion } from "framer-motion";
 
 export default function Home() {
-  const [cities, setCities] = useState([]);
-  const [mstResult, setMstResult] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [invalidCities, setInvalidCities] = useState([]); // New state
+  const [cities, setCities] = useState<string[]>([]);
+  const [mstResult, setMstResult] = useState<{
+    paths: { from: string; to: string; distance: number }[];
+    totalDistance: number;
+    graphData: { nodes: { id: number; label: string }[]; edges: { from: number; to: number; label: string; color: string }[] };
+  } | null>(null);
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [invalidCities, setInvalidCities] = useState<string[]>([]);
 
   useEffect(() => {
     const validateCities = async () => {
-      const invalid = [];
+      const invalid: string[] = [];
       for (const city of cities) {
-        const exists = await checkCityExists(city);
+        const exists: boolean = await checkCityExists(city);
         if (!exists) {
           invalid.push(city);
         }
@@ -50,30 +54,50 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const coords = await getCoordinates(cities);
+      const coords: { lat: number; lng: number }[] = await getCoordinates(cities);
       if (coords.length !== cities.length) {
         setError("Some cities could not be found. Please check your input and try again.");
         setLoading(false);
         return;
       }
 
-      const distances = await getRoadDistances(coords);
-      const edges = [];
+      const distances: number[][] = await getRoadDistances(coords);
+      const edges: { u: number; v: number; w: number }[] = [];
       for (let i = 0; i < coords.length; i++) {
         for (let j = i + 1; j < coords.length; j++) {
           edges.push({ u: i, v: j, w: distances[i][j] });
         }
       }
 
-      const mst = kruskal(coords.length, edges);
+      const mst: { u: number; v: number; w: number }[] = kruskal(coords.length, edges);
       const mstPaths = mst.map((edge) => ({
         from: cities[edge.u],
         to: cities[edge.v],
         distance: edge.w,
       }));
-      const totalDistance = mst.reduce((sum, edge) => sum + edge.w, 0);
+      const totalDistance: number = mst.reduce((sum, edge) => sum + edge.w, 0);
 
-      setMstResult({ paths: mstPaths, totalDistance });
+      // Graph data for vis-network
+      const nodes = cities.map((city, i) => ({
+        id: i,
+        label: city,
+      }));
+      const graphEdges: { from: number; to: number; label: string; color: string }[] = [];
+      for (let i = 0; i < coords.length; i++) {
+        for (let j = i + 1; j < coords.length; j++) {
+          const isMstEdge = mst.some(edge => 
+            (edge.u === i && edge.v === j) || (edge.u === j && edge.v === i)
+          );
+          graphEdges.push({
+            from: i,
+            to: j,
+            label: `${(distances[i][j] / 1000).toFixed(2)} km`,
+            color: isMstEdge ? "#00FF00" : "#808080",
+          });
+        }
+      }
+
+      setMstResult({ paths: mstPaths, totalDistance, graphData: { nodes, edges: graphEdges } });
     } catch (err) {
       setError("An error occurred while calculating the MST. Please try again later.");
       console.error(err);
