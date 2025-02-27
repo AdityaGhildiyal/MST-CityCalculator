@@ -1,67 +1,94 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import CityInput from "@/components/CityInput"
-import MstResult from "@/components/MstResult"
-import { getCoordinates, getRoadDistances } from "@/lib/apiUtils"
-import { kruskal } from "@/lib/kruskal"
-import { motion } from "framer-motion"
+import { useState, useEffect } from "react";
+import CityInput from "@/components/CityInput";
+import MstResult from "@/components/MstResult";
+import { getCoordinates, getRoadDistances } from "@/lib/apiUtils";
+import { kruskal } from "@/lib/kruskal";
+import { checkCityExists } from "@/lib/api"; // Add this import
+import { motion } from "framer-motion";
 
 export default function Home() {
-  const [cities, setCities] = useState<string[]>([])
-  const [mstResult, setMstResult] = useState<{ paths: any[]; totalDistance: number } | null>(null)
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [cities, setCities] = useState([]);
+  const [mstResult, setMstResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [invalidCities, setInvalidCities] = useState([]); // New state
+
+  useEffect(() => {
+    const validateCities = async () => {
+      const invalid = [];
+      for (const city of cities) {
+        const exists = await checkCityExists(city);
+        if (!exists) {
+          invalid.push(city);
+        }
+      }
+      setInvalidCities(invalid);
+      if (invalid.length > 0) {
+        setError(`Removing invalid cities: ${invalid.join(", ")}`);
+        setCities(cities.filter(city => !invalid.includes(city)));
+      } else {
+        setError("");
+        setInvalidCities([]);
+      }
+    };
+
+    if (cities.length > 0) {
+      validateCities();
+    }
+  }, [cities]);
 
   const handleCalculate = async () => {
     if (cities.length < 3 || cities.length > 10) {
-      setError("Please enter between 3 and 10 cities.")
-      return
+      setError("Please enter between 3 and 10 cities.");
+      return;
     }
 
-    setError("")
-    setMstResult(null)
-    setLoading(true)
+    setError("");
+    setMstResult(null);
+    setLoading(true);
 
     try {
-      const coords = await getCoordinates(cities)
+      const coords = await getCoordinates(cities);
       if (coords.length !== cities.length) {
-        setError("Some cities could not be found. Please check your input and try again.")
-        setLoading(false)
-        return
+        setError("Some cities could not be found. Please check your input and try again.");
+        setLoading(false);
+        return;
       }
 
-      const distances = await getRoadDistances(coords)
-      const edges = []
+      const distances = await getRoadDistances(coords);
+      const edges = [];
       for (let i = 0; i < coords.length; i++) {
         for (let j = i + 1; j < coords.length; j++) {
-          edges.push({ u: i, v: j, w: distances[i][j] })
+          edges.push({ u: i, v: j, w: distances[i][j] });
         }
       }
 
-      const mst = kruskal(coords.length, edges)
+      const mst = kruskal(coords.length, edges);
       const mstPaths = mst.map((edge) => ({
         from: cities[edge.u],
         to: cities[edge.v],
         distance: edge.w,
-      }))
-      const totalDistance = mst.reduce((sum, edge) => sum + edge.w, 0)
+      }));
+      const totalDistance = mst.reduce((sum, edge) => sum + edge.w, 0);
 
-      setMstResult({ paths: mstPaths, totalDistance })
+      setMstResult({ paths: mstPaths, totalDistance });
     } catch (err) {
-      setError("An error occurred while calculating the MST. Please try again later.")
-      console.error(err)
+      setError("An error occurred while calculating the MST. Please try again later.");
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleReset = () => {
-    setCities([])
-    setMstResult(null)
-    setError("")
-    setLoading(false)
-  }
+    setCities([]);
+    setMstResult(null);
+    setError("");
+    setLoading(false);
+    setInvalidCities([]);
+  };
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
@@ -72,7 +99,7 @@ export default function Home() {
         className="w-full max-w-3xl"
       >
         <h1 className="text-4xl font-bold text-center mb-8">City MST Calculator</h1>
-        <CityInput cities={cities} setCities={setCities} />
+        <CityInput cities={cities} setCities={setCities} invalidCities={invalidCities} />
         <div className="flex justify-between mt-6">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -108,6 +135,5 @@ export default function Home() {
         {mstResult && <MstResult result={mstResult} />}
       </motion.div>
     </div>
-  )
+  );
 }
-

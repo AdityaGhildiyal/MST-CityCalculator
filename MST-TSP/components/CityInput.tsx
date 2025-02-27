@@ -1,29 +1,29 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState } from "react"
-import { motion } from "framer-motion"
+import type React from "react";
+import { useState } from "react";
+import { motion } from "framer-motion";
 
 interface CityInputProps {
-  cities: string[]
-  setCities: (cities: string[]) => void
+  cities: string[];
+  setCities: (cities: string[]) => void;
+  invalidCities?: string[]; // Optional prop for highlighting invalid cities
 }
 
-const CityInput: React.FC<CityInputProps> = ({ cities, setCities }) => {
-  const [input, setInput] = useState("")
+const CityInput: React.FC<CityInputProps> = ({ cities, setCities, invalidCities = [] }) => {
+  const [input, setInput] = useState("");
 
   const handleAddCity = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (input.trim() && cities.length < 10 && !cities.includes(input.trim())) {
-      setCities([...cities, input.trim()])
-      setInput("")
+      setCities([...cities, input.trim()]);
+      setInput("");
     }
-  }
+  };
 
   const handleRemoveCity = (cityToRemove: string) => {
-    setCities(cities.filter((city) => city !== cityToRemove))
-  }
+    setCities(cities.filter((city) => city !== cityToRemove));
+  };
 
   return (
     <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-lg p-6">
@@ -58,7 +58,9 @@ const CityInput: React.FC<CityInputProps> = ({ cities, setCities }) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="flex justify-between items-center p-3 bg-black bg-opacity-30 rounded-lg"
+            className={`flex justify-between items-center p-3 rounded-lg ${
+              invalidCities.includes(city) ? "bg-red-900 bg-opacity-70" : "bg-black bg-opacity-30"
+            }`}
           >
             <span>{city}</span>
             <motion.button
@@ -79,8 +81,7 @@ const CityInput: React.FC<CityInputProps> = ({ cities, setCities }) => {
         </p>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default CityInput
-
+export default CityInput;
