@@ -4,22 +4,25 @@ import { useState, useEffect, useRef } from "react";
 import { Network } from "vis-network/standalone";
 import { motion } from "framer-motion";
 
-interface MstResultProps {
-  result: {
-    paths: { from: string; to: string; distance: number }[];
-    totalDistance: number;
-    graphData: {
-      nodes: { id: number; label: string }[];
-      edges: { from: number; to: number; label: string; color: string }[];
-    };
+interface Result {
+  paths: { from: string; to: string; distance: number; isTsp?: boolean }[];
+  totalDistance: number;
+  graphData: {
+    nodes: { id: number; label: string }[];
+    edges: { from: number; to: number; label: string; color: string; isMst?: boolean; isTsp?: boolean }[];
   };
 }
 
-const MstResult: React.FC<MstResultProps> = ({ result }) => {
+interface MstResultTSPProps {
+  result: Result;
+  mode: "mst" | "tsp";
+}
+
+const MstResultTSP: React.FC<MstResultTSPProps> = ({ result, mode }) => {
   const { paths, totalDistance, graphData } = result;
   const [showGraph, setShowGraph] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [showNonMstEdges, setShowNonMstEdges] = useState(false); // Toggle for non-MST edges
+  const [showNonMstEdges, setShowNonMstEdges] = useState(false);
   const graphRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
 
@@ -27,67 +30,60 @@ const MstResult: React.FC<MstResultProps> = ({ result }) => {
     if (showGraph && graphRef.current && !networkRef.current) {
       const filteredEdges = showNonMstEdges
         ? graphData.edges
-        : graphData.edges.filter(edge => edge.color === "#00FF00"); // Only MST edges if toggled off
+        : graphData.edges.filter(edge => edge.isTsp);
 
-        const options = {
-          nodes: {
-            shape: "dot",
-            size: 12,
-            font: { size: 14, color: "#ffffff", face: "Arial", bold: true },
-            color: { background: "#4a90e2", border: "#ffffff", highlight: { background: "#6ab0ff" } },
+      const options = {
+        nodes: {
+          shape: "dot",
+          size: 12,
+          font: { size: 14, color: "#ffffff", face: "Arial", bold: true },
+          color: { background: "#4a90e2", border: "#ffffff", highlight: { background: "#6ab0ff" } },
+        },
+        edges: {
+          width: 2,
+          font: {
+            size: 14,
+            color: "#ffffff",
+            align: "middle",
+            background: "rgba(0, 0, 0, 0.8)",
+            strokeWidth: 2,
+            vadjust: -10,
           },
-          edges: {
-            width: 2,
-            font: {
-              size: 14,
-              color: "#ffffff",
-              align: "middle",
-              background: "rgba(0, 0, 0, 0.8)",
-              strokeWidth: 2,
-              vadjust: -10,
-            },
-            arrows: { to: { enabled: false } },
-            smooth: {
-              enabled: true, // Add this line
-              type: "discrete",
-              roundness: 0.5, // Add a roundness value
-            },
-            color: { inherit: true },
+          arrows: { to: { enabled: false } },
+          smooth: { type: "discrete" },
+          color: { inherit: true },
+        },
+        physics: {
+          enabled: true,
+          stabilization: { iterations: 3000 },
+          barnesHut: {
+            gravitationalConstant: -6000,
+            springLength: 250,
+            springConstant: 0.03,
           },
-          physics: {
-            enabled: true,
-            stabilization: { iterations: 3000 },
-            barnesHut: {
-              gravitationalConstant: -6000,
-              springLength: 250,
-              springConstant: 0.03,
-            },
-            minVelocity: 0.05,
-          },
-          layout: {
-            randomSeed: 42,
-            improvedLayout: true,
-          },
-          interaction: {
-            hover: true,
-            tooltipDelay: 100,
-            navigationButtons: true,
-            zoomView: true,
-            dragView: true,
-          },
-        };
+          minVelocity: 0.05,
+        },
+        layout: {
+          randomSeed: 42,
+          improvedLayout: true,
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 100,
+          navigationButtons: true,
+          zoomView: true,
+          dragView: true,
+        },
+      };
 
       networkRef.current = new Network(graphRef.current, { ...graphData, edges: filteredEdges }, options);
 
-      // Fit graph on load for better visibility
       networkRef.current.fit({ animation: { duration: 1000, easingFunction: "easeInOutQuad" } });
 
-      // Disable physics in full-screen for stability
       if (isFullScreen) {
         networkRef.current.setOptions({ physics: { enabled: false } });
       }
 
-      // Cleanup on unmount
       return () => {
         if (networkRef.current) {
           networkRef.current.destroy();
@@ -95,12 +91,12 @@ const MstResult: React.FC<MstResultProps> = ({ result }) => {
         }
       };
     }
-  }, [showGraph, graphData, isFullScreen, showNonMstEdges]);
+  }, [showGraph, graphData, isFullScreen, showNonMstEdges, mode]);
 
   const toggleFullScreen = () => {
     setIsFullScreen(!isFullScreen);
     if (networkRef.current) {
-      networkRef.current.setOptions({ physics: { enabled: !isFullScreen } }); // Toggle physics on/off
+      networkRef.current.setOptions({ physics: { enabled: !isFullScreen } });
       networkRef.current.fit({ animation: { duration: 1000, easingFunction: "easeInOutQuad" } });
     }
   };
@@ -111,7 +107,7 @@ const MstResult: React.FC<MstResultProps> = ({ result }) => {
 
   return (
     <div className="mt-6">
-      <h2 className="text-2xl font-semibold mb-4">Minimum Spanning Tree</h2>
+      <h2 className="text-2xl font-semibold mb-4">Traveling Salesman Route</h2>
       <table className="w-full border-collapse mb-4 bg-gray-800 rounded-lg overflow-hidden">
         <thead>
           <tr className="bg-gray-700">
@@ -148,7 +144,7 @@ const MstResult: React.FC<MstResultProps> = ({ result }) => {
           transition={{ duration: 0.5 }}
           className="mt-4 relative"
         >
-          <h3 className="text-lg font-semibold mb-2">MST Graph</h3>
+          <h3 className="text-lg font-semibold mb-2">TSP Graph</h3>
           <div className="flex justify-end mb-2">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -177,4 +173,4 @@ const MstResult: React.FC<MstResultProps> = ({ result }) => {
   );
 };
 
-export default MstResult;
+export default MstResultTSP;
